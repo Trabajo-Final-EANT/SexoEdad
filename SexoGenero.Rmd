@@ -1,0 +1,177 @@
+---
+title: "Edad y Sexo"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+*1. Cargo librerias*
+```{r}
+library(data.table)
+library(tidyverse)
+library(highcharter)
+library(ggplot2)
+library(plotly)
+options(scipen=100)
+```
+
+*2. Abro el dataset y lo miramos*
+```{r}
+Piramide<-fread("https://cdn.buenosaires.gob.ar/datosabiertos/datasets/SIGBA/Estructura_de_la_poblacion/pob_cen_sexo__annio__l_nac__g_edad_limpio.csv", encoding = "UTF-8")
+
+names(Piramide)
+```
+
+*3.1 La idea es solamente sortear por sexo y edad, por lo cual voy a eliminar variable nacionalidad. 
+```{r}
+unique(Piramide$grupo_edad)
+Piramide<-Piramide%>%group_by(anio, sexo,grupo_edad)%>%
+  summarise(Poblacion=sum(cant_poblacion))
+```
+3.2Renombramos categorias para facilitar interpretacion
+```{r}
+Piramide<-Piramide%>%mutate(sexo=case_when(
+  sexo=="m"~"Femenino",
+  sexo=="v"~"Masculino"
+))
+Piramide2<-Piramide%>%mutate(grupo_edad=case_when(
+    grupo_edad=="0 - 4"~ 0.4,
+    grupo_edad=="5 - 9"~ 5.9,
+    grupo_edad=="10 - 14"~ 10.14,
+    grupo_edad=="15 - 19"~ 15.19,
+    grupo_edad=="20 - 24"~ 20.24,
+    grupo_edad=="25 - 29"~ 25.29,
+    grupo_edad=="30 - 34"~ 30.34,
+    grupo_edad=="35 - 39"~ 35.39,
+    grupo_edad=="40 - 44"~ 40.44,
+    grupo_edad=="45 - 49"~ 45.49,
+    grupo_edad=="50 - 54"~ 50.54,
+    grupo_edad=="55 - 59"~ 55.59,
+    grupo_edad=="60 - 64"~ 60.64,
+    grupo_edad=="65 - 69"~ 65.69,
+    grupo_edad=="70 - 74"~ 70.74,
+    grupo_edad=="75 - 79"~ 75.79,
+    grupo_edad=="80 - 84"~ 80.84,
+    grupo_edad=="85 y más"~ 85.100))
+Piramide2$grupo_edad <- cut(x = Piramide2$grupo_edad, breaks = seq(0, 100, 5))
+unique(Piramide2$grupo_edad)
+
+```
+
+*4. Graficamos*
+
+4.1 Primero hacemos uno que cruce Año x Cantidad de Poblacion y segun Sexo
+```{r}
+PoblxGenero<-Piramide2%>%group_by(anio,sexo)%>%
+  summarise(Poblacion=sum(Poblacion))%>%
+  hchart( "line",
+         hcaes(x = anio, y= Poblacion,
+               group = sexo)) %>%
+  hc_title(text = "Cantidad de Poblacion por sexo(1960-2010)")%>%
+  hc_subtitle(text = "Ciudad Autónoma de Buenos Aires (1960-2010)")%>%
+  hc_yAxis(title = list(text = "Poblacion"),
+           labels = list(format = "{value}")) %>%
+  hc_credits(enabled = TRUE, text = "Fuente: Instituto Nacional de Estadisticas y Censos", style = list(fontSize = "12px"))%>%
+  hc_add_theme(hc_theme_ffx())
+PoblxGenero            
+```
+
+
+4.2 *Segundo hacemos uno que cruce Año x Cantidad de Poblacion y segun Grupo Etario. Debemos, para facilitar su interpretacion, expandir los rangos etarios*
+```{r}
+PoblxEdad<-Piramide%>%mutate(Edad=case_when(
+    grupo_edad=="0 - 4"~ "-15",
+    grupo_edad=="5 - 9"~ "-15",
+    grupo_edad=="10 - 14"~ "-15",
+    grupo_edad=="15 - 19"~ "15-29",
+    grupo_edad=="20 - 24"~ "15-29",
+    grupo_edad=="25 - 29"~ "15-29",
+    grupo_edad=="30 - 34"~ "30-44",
+    grupo_edad=="35 - 39"~ "30-44",
+    grupo_edad=="40 - 44"~ "30-44",
+    grupo_edad=="45 - 49"~ "45-59",
+    grupo_edad=="50 - 54"~ "45-59",
+    grupo_edad=="55 - 59"~ "45-59",
+    grupo_edad=="60 - 64"~ "+60",
+    grupo_edad=="65 - 69"~ "+60",
+    grupo_edad=="70 - 74"~ "+60",
+    grupo_edad=="75 - 79"~ "+60",
+    grupo_edad=="80 - 84"~ "+60",
+    grupo_edad=="85 y más"~ "+60"))%>%
+  na.omit%>%
+  group_by(anio,Edad)%>%
+  summarise(Poblacion=sum(Poblacion))%>%
+  rename(Año=anio)
+
+G_Pob_Edad=  hchart(PoblxEdad, "line",
+         hcaes(x = Año, y= Poblacion,
+               group = Edad)) %>%
+  hc_title(text = "Cantidad de Poblacion por grupo etario(1960-2010)")%>%
+  hc_subtitle(text = "Ciudad Autónoma de Buenos Aires (1960-2010)")%>%
+  hc_yAxis(title = list(text = "Poblacion"),
+           labels = list(format = "{value}")) %>%
+  hc_credits(enabled = TRUE, text = "Fuente: Instituto Nacional de Estadisticas y Censos", style = list(fontSize = "12px"))%>%
+  hc_add_theme(hc_theme_ffx())
+G_Pob_Edad
+
+write.csv(PoblxEdad, "C:/Users/nacho/Documents/DataScience/R/CURSO/TrabajoF/Shiny/PruebaShiny1/Poblacion/Poblacion por Edad.csv", row.names = FALSE, fileEncoding = "UTF-8")          
+```
+
+4.3 Finalmente hacemos una piramide poblacional que integre tanto edad como sexo
+```{r}
+
+poblacion_piramide<-Piramide2%>%na.omit()
+#primero debemos hacer negativos los valores de uno de los 2 sexos
+poblacion_piramide <- poblacion_piramide %>%mutate(
+    Poblacion= ifelse(
+      sexo == "Masculino",
+      -Poblacion, Poblacion),
+    poblacion = ifelse(sexo == "Hombres", -Poblacion, Poblacion)
+    )
+poblacion_piramide=poblacion_piramide[,-c(5)]
+poblacion_piramide=poblacion_piramide%>%rename(Año=anio)
+write.csv(poblacion_piramide, "C:/Users/nacho/Documents/DataScience/R/CURSO/TrabajoF/Shiny/PruebaShiny1/Poblacion/PiramidePoblacion.csv",fileEncoding = "UTF-8")
+
+FINAL<-poblacion_piramide%>%filter(Año==1855)%>%
+  ggplot(mapping=aes(x=grupo_edad, y= Poblacion, fill=sexo))+
+  geom_col(alpha=.7)+
+  labs(title="Piramide poblacional. Ciudad Autonoma de Buenos Aires",
+       x="",
+       y="Cantidad de Poblacion",
+       caption="Fuente: Instituto Nacional de Estadisticas y Censos")+
+  scale_fill_manual(values=c("#561759","#099cdb"))+
+  theme(legend.position = "right",
+        strip.text = element_text(size = 14, face = "bold"))+
+  coord_flip()+
+  theme_classic()
+ggplotly(FINAL)
+
+
+
+```
+
+
+
+
